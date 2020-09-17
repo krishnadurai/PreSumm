@@ -26,6 +26,7 @@ class Batch(object):
             pre_segs = [x[2] for x in data]
             pre_clss = [x[3] for x in data]
             pre_src_sent_labels = [x[4] for x in data]
+            file_name = [x[5] for x in data]
 
             src = torch.tensor(self._pad(pre_src, 0))
             tgt = torch.tensor(self._pad(pre_tgt, 0))
@@ -41,7 +42,8 @@ class Batch(object):
             clss[clss == -1] = 0
             setattr(self, 'clss', clss.to(device))
             setattr(self, 'mask_cls', mask_cls.to(device))
-            setattr(self, 'src_sent_labels', src_sent_labels.to(device))
+            if pre_src_sent_labels:
+                setattr(self, 'src_sent_labels', src_sent_labels.to(device))
 
 
             setattr(self, 'src', src.to(device))
@@ -49,6 +51,7 @@ class Batch(object):
             setattr(self, 'segs', segs.to(device))
             setattr(self, 'mask_src', mask_src.to(device))
             setattr(self, 'mask_tgt', mask_tgt.to(device))
+            setattr(self, 'file_name', file_name)
 
 
             if (is_test):
@@ -111,7 +114,7 @@ def abs_batch_size_fn(new, count, max_ndocs_in_batch=6):
 
 
 
-def ext_batch_size_fn(new, count):
+def ext_batch_size_fn(new, count, max_ndocs_in_batch=6):
     if (len(new) == 4):
         pass
     src, labels = new[0], new[4]
@@ -195,7 +198,9 @@ class DataIterator(object):
     def preprocess(self, ex, is_test):
         src = ex['src']
         tgt = ex['tgt'][:self.args.max_tgt_len][:-1]+[2]
-        src_sent_labels = ex['src_sent_labels']
+        src_sent_labels = []
+        if 'src_sent_labels' in ex.keys():
+            src_sent_labels = ex['src_sent_labels']
         segs = ex['segs']
         if(not self.args.use_interval):
             segs=[0]*len(segs)
@@ -207,16 +212,18 @@ class DataIterator(object):
         src = src[:-1][:self.args.max_pos - 1] + end_id
         segs = segs[:self.args.max_pos]
         max_sent_id = bisect.bisect_left(clss, self.args.max_pos)
-        src_sent_labels = src_sent_labels[:max_sent_id]
+        if 'src_sent_labels' in ex.keys():
+            src_sent_labels = src_sent_labels[:max_sent_id]
         clss = clss[:max_sent_id]
         # src_txt = src_txt[:max_sent_id]
+        file_name = ex['file_name']
 
 
 
         if(is_test):
-            return src, tgt, segs, clss, src_sent_labels, src_txt, tgt_txt
+            return src, tgt, segs, clss, src_sent_labels, file_name, src_txt, tgt_txt
         else:
-            return src, tgt, segs, clss, src_sent_labels
+            return src, tgt, segs, clss, src_sent_labels, file_name
 
     def batch_buffer(self, data, batch_size):
         minibatch, size_so_far = [], 0

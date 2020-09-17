@@ -8,7 +8,7 @@ import argparse
 import os
 from others.logging import init_logger
 from train_abstractive import validate_abs, train_abs, baseline, test_abs, test_text_abs
-from train_extractive import train_ext, validate_ext, test_ext, test_text_ext
+from train_extractive import train_ext, validate_ext, test_ext, test_text_ext, test_utterances_ext
 
 model_flags = ['hidden_size', 'ff_size', 'heads', 'emb_size', 'enc_layers', 'enc_hidden_size', 'enc_ff_size',
                'dec_layers', 'dec_hidden_size', 'dec_ff_size', 'encoder', 'ff_actv', 'use_interval']
@@ -29,7 +29,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("-task", default='ext', type=str, choices=['ext', 'abs'])
     parser.add_argument("-encoder", default='bert', type=str, choices=['bert', 'baseline'])
-    parser.add_argument("-mode", default='train', type=str, choices=['train', 'validate', 'test', 'test_text'])
+    parser.add_argument("-mode", default='train', type=str, choices=['train', 'validate', 'test', 'test_text', 'test_utterances'])
     parser.add_argument("-bert_data_path", default='../bert_data_new/cnndm')
     parser.add_argument("-model_path", default='../models/')
     parser.add_argument("-result_path", default='../results/cnndm')
@@ -153,3 +153,5 @@ if __name__ == '__main__':
             test_ext(args, device_id, cp, step)
         elif (args.mode == 'test_text'):
             test_text_ext(args)
+        elif (args.mode == 'test_utterances'):
+            test_utterances_ext(args)

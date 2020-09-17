@@ -245,7 +245,25 @@ def train_single_ext(args, device_id):
     trainer.train(train_iter_fct, args.train_steps)
 
 
+def test_utterances_ext(args):
+    logger.info('Loading checkpoint from %s' % args.test_from)
+    checkpoint = torch.load(args.test_from, map_location=lambda storage, loc: storage)
+    opt = vars(checkpoint['opt'])
+    for k in opt.keys():
+        if (k in model_flags):
+            setattr(args, k, opt[k])
+    print(args)
+    device = "cpu" if args.visible_gpus == '-1' else "cuda"
+    device_id = 0 if device == "cuda" else -1
 
+    model = ExtSummarizer(args, device, checkpoint)
+    model.eval()
+
+    test_iter = data_loader.Dataloader(args, load_dataset(args, 'test', shuffle=False),
+                                       args.test_batch_size, device,
+                                       shuffle=False, is_test=True)
+    trainer = build_trainer(args, device_id, model, None)
+    trainer.test(test_iter, -1)
 
 def test_text_ext(args):
     logger.info('Loading checkpoint from %s' % args.test_from)
@@ -265,5 +283,3 @@ def test_text_ext(args):
 
     trainer = build_trainer(args, device_id, model, None)
     trainer.test(test_iter, -1)
-
-

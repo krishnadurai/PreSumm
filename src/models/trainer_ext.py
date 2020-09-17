@@ -3,6 +3,7 @@ import os
 import numpy as np
 import torch
 from tensorboardX import SummaryWriter
+import json
 
 import distributed
 from models.reporter_ext import ReportMgr, Statistics
@@ -197,7 +198,7 @@ class Trainer(object):
             self._report_step(0, step, valid_stats=stats)
             return stats
 
-    def test(self, test_iter, step, cal_lead=False, cal_oracle=False):
+    def test(self, test_iter, step, cal_lead=False, cal_oracle=False, fraction_preds=0.1):
         """ Validate model.
             valid_iter: validate data iterator
         Returns:
@@ -236,6 +237,7 @@ class Trainer(object):
                         clss = batch.clss
                         mask = batch.mask_src
                         mask_cls = batch.mask_cls
+                        file_name = batch.file_name
                         gold = []
                         pred = []
                         if (cal_lead):
@@ -251,12 +253,14 @@ class Trainer(object):
                             sent_scores = sent_scores.cpu().data.numpy()
                             selected_ids = np.argsort(-sent_scores, 1)
 
+                            '''
                             if (hasattr(batch, 'src_sent_labels')):
                                 labels = batch.src_sent_labels
                                 loss = self.loss(sent_scores, labels.float())
                                 loss = (loss * mask.float()).sum()
                                 batch_stats = Statistics(float(loss.cpu().data.numpy()), len(labels))
                                 stats.update(batch_stats)
+                            '''
 
                         for i, idx in enumerate(selected_ids):
                             _pred = []
@@ -272,10 +276,13 @@ class Trainer(object):
                                 else:
                                     _pred.append(candidate)
 
-                                if ((not cal_oracle) and (not self.args.recall_eval) and len(_pred) == 3):
+                                exp_num_lines = fraction_preds * len(batch.src_str[i])
+                                logger.info('Expected num lines pred: %d ' % (exp_num_lines))
+                                if ((not cal_oracle) and (not self.args.recall_eval) and (len(_pred) > exp_num_lines)):
                                     break
 
                             _pred = '<q>'.join(_pred)
+                            logger.info('pred: %s ' % (_pred))
                             if (self.args.recall_eval):
                                 _pred = ' '.join(_pred.split()[:len(batch.tgt_str[i].split())])
 
@@ -283,9 +290,14 @@ class Trainer(object):
                             gold.append(batch.tgt_str[i])
 
                         for i in range(len(gold)):
-                            save_gold.write(gold[i].strip() + '\n')
+                            save_gold.write('Test text'.strip() + '\n')
+                            #save_gold.write(gold[i].strip() + '\n')
                         for i in range(len(pred)):
-                            save_pred.write(pred[i].strip() + '\n')
+                            output_dict = {
+                                'file_name': file_name[i],
+                                'predicted_lines': pred[i].split('<q>')
+                            }
+                            save_pred.write(json.dumps(output_dict) + '\n')
         if (step != -1 and self.args.report_rouge):
             rouges = test_rouge(self.args.temp_dir, can_path, gold_path)
             logger.info('Rouges at step %d \n%s' % (step, rouge_results_to_str(rouges)))
